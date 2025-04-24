@@ -39,6 +39,12 @@
             padding: 15px;
             margin-bottom: 20px;
         }
+        .early-payment-row {
+            margin-bottom: 10px;
+        }
+        .btn-remove {
+            margin-left: 5px;
+        }
     </style>
 </head>
 <body>
@@ -46,32 +52,57 @@
         <h1>還款計算表</h1>
         
         <form method="POST" class="row g-3">
-            <div class="col-md-3">
+            <div class="col-md-4">
                 <label for="loan_amount" class="form-label">貸款金額</label>
                 <div class="input-group">
                     <span class="input-group-text">$</span>
-                    <input type="number" class="form-control" id="loan_amount" name="loan_amount" min="1" step="any" required>
+                    <input type="number" class="form-control" id="loan_amount" name="loan_amount" min="1" step="any" required value="{{ form_data.loan_amount if form_data else '' }}">
                 </div>
             </div>
             
-            <div class="col-md-3">
+            <div class="col-md-4">
                 <label for="interest_rate" class="form-label">年利率</label>
                 <div class="input-group">
-                    <input type="number" class="form-control" id="interest_rate" name="interest_rate" min="0" step="0.01" required>
+                    <input type="number" class="form-control" id="interest_rate" name="interest_rate" min="0" step="0.01" required value="{{ form_data.interest_rate if form_data else '' }}">
                     <span class="input-group-text">%</span>
                 </div>
             </div>
             
-            <div class="col-md-3">
+            <div class="col-md-4">
                 <label for="loan_term" class="form-label">期數 (月)</label>
-                <input type="number" class="form-control" id="loan_term" name="loan_term" min="1" required>
+                <input type="number" class="form-control" id="loan_term" name="loan_term" min="1" required value="{{ form_data.loan_term if form_data else '' }}">
             </div>
             
-            <div class="col-md-3">
-                <label for="early_payment" class="form-label">提前還款金額</label>
-                <div class="input-group">
-                    <span class="input-group-text">$</span>
-                    <input type="number" class="form-control" id="early_payment" name="early_payment" min="0" step="any" value="0">
+            <div class="col-12 mt-4">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">提前還款金額</h5>
+                        <button type="button" class="btn btn-sm btn-success" id="add-early-payment">新增提前還款</button>
+                    </div>
+                    <div class="card-body" id="early-payments-container">
+                        <!-- Early payments fields will be added here dynamically -->
+                        {% if early_payments_input %}
+                            {% for key, value in early_payments_input.items() %}
+                                {% set month = key.split('_')[2] %}
+                                <div class="row early-payment-row">
+                                    <div class="col-md-6">
+                                        <label class="form-label">期數</label>
+                                        <input type="number" class="form-control" name="early_payment_month" value="{{ month }}" min="1" required>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">金額</label>
+                                        <div class="input-group">
+                                            <span class="input-group-text">$</span>
+                                            <input type="number" class="form-control" name="early_payment_{{ month }}" value="{{ value }}" min="0" step="any">
+                                            <button type="button" class="btn btn-danger btn-remove">移除</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        {% else %}
+                            <p class="text-muted text-center" id="no-early-payments">目前沒有提前還款項目</p>
+                        {% endif %}
+                    </div>
                 </div>
             </div>
             
@@ -105,8 +136,8 @@
                 </div>
                 <div class="col-md-3">
                     <div class="summary-box">
-                        <h5>提前還款金額</h5>
-                        <h3 class="text-primary">${{ early_payment }}</h3>
+                        <h5>總提前還款金額</h5>
+                        <h3 class="text-primary">${{ total_early_payment }}</h3>
                     </div>
                 </div>
             </div>
@@ -131,7 +162,7 @@
                             <td>${{ payment.payment }}</td>
                             <td>${{ payment.principal }}</td>
                             <td>${{ payment.interest }}</td>
-                            <td>${% if payment.early_payment %}{{ payment.early_payment }}{% else %}0.00{% endif %}</td>
+                            <td>${{ payment.early_payment }}</td>
                             <td>${{ payment.remaining_balance }}</td>
                         </tr>
                         {% endfor %}
@@ -143,5 +174,67 @@
     </div>
     
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const addEarlyPaymentBtn = document.getElementById('add-early-payment');
+            const earlyPaymentsContainer = document.getElementById('early-payments-container');
+            const noEarlyPaymentsMsg = document.getElementById('no-early-payments');
+            
+            // Add early payment row
+            addEarlyPaymentBtn.addEventListener('click', function() {
+                if (noEarlyPaymentsMsg) {
+                    noEarlyPaymentsMsg.style.display = 'none';
+                }
+                
+                const newRow = document.createElement('div');
+                newRow.className = 'row early-payment-row';
+                
+                // Generate a unique ID for the new early payment field
+                const timestamp = new Date().getTime();
+                
+                newRow.innerHTML = `
+                    <div class="col-md-6">
+                        <label class="form-label">期數</label>
+                        <input type="number" class="form-control" name="early_payment_month" min="1" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">金額</label>
+                        <div class="input-group">
+                            <span class="input-group-text">$</span>
+                            <input type="number" class="form-control early-payment-amount" name="early_payment_${timestamp}" min="0" step="any">
+                            <button type="button" class="btn btn-danger btn-remove">移除</button>
+                        </div>
+                    </div>
+                `;
+                
+                earlyPaymentsContainer.appendChild(newRow);
+                
+                // Update the name attribute when month is changed
+                const monthInput = newRow.querySelector('input[name="early_payment_month"]');
+                const amountInput = newRow.querySelector('.early-payment-amount');
+                
+                monthInput.addEventListener('change', function() {
+                    const month = this.value;
+                    if (month && month > 0) {
+                        amountInput.name = `early_payment_${month}`;
+                    }
+                });
+            });
+            
+            // Remove early payment row
+            earlyPaymentsContainer.addEventListener('click', function(e) {
+                if (e.target.classList.contains('btn-remove')) {
+                    const row = e.target.closest('.early-payment-row');
+                    row.remove();
+                    
+                    // Show message if no early payments
+                    const rows = earlyPaymentsContainer.querySelectorAll('.early-payment-row');
+                    if (rows.length === 0 && noEarlyPaymentsMsg) {
+                        noEarlyPaymentsMsg.style.display = 'block';
+                    }
+                }
+            });
+        });
+    </script>
 </body>
 </html> 

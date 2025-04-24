@@ -22,7 +22,7 @@ def calculate_monthly_payment(loan_amount, annual_interest_rate, loan_term_month
         return loan_amount * (monthly_interest_rate * (1 + monthly_interest_rate) ** loan_term_months) / \
                ((1 + monthly_interest_rate) ** loan_term_months - 1)
 
-def generate_payment_schedule(loan_amount, annual_interest_rate, loan_term_months, early_payment=0):
+def generate_payment_schedule(loan_amount, annual_interest_rate, loan_term_months, early_payments=None):
     """
     Generate amortization schedule for the loan.
     
@@ -30,11 +30,14 @@ def generate_payment_schedule(loan_amount, annual_interest_rate, loan_term_month
         loan_amount: The principal loan amount
         annual_interest_rate: Annual interest rate in percentage
         loan_term_months: Loan term in months
-        early_payment: Amount of early payment per month (optional)
+        early_payments: Dictionary mapping months to early payment amounts (optional)
         
     Returns:
         List of dictionaries containing payment details for each month
     """
+    if early_payments is None:
+        early_payments = {}
+    
     monthly_interest_rate = annual_interest_rate / 100 / 12
     monthly_payment = calculate_monthly_payment(loan_amount, annual_interest_rate, loan_term_months)
     
@@ -45,17 +48,13 @@ def generate_payment_schedule(loan_amount, annual_interest_rate, loan_term_month
         interest_payment = remaining_balance * monthly_interest_rate
         principal_payment = monthly_payment - interest_payment
         
-        # Apply early payment if there's remaining balance after the regular payment
-        current_early_payment = 0
-        if early_payment > 0 and month == 1:  # Apply early payment in the first month
-            current_early_payment = early_payment
-            if current_early_payment > remaining_balance - principal_payment:
-                current_early_payment = remaining_balance - principal_payment
-        
-        # Calculate remaining balance after regular payment
+        # Apply regular payment first
         remaining_balance -= principal_payment
         
-        # Apply early payment
+        # Check if there's an early payment for this month
+        current_early_payment = early_payments.get(month, 0)
+        
+        # If there is an early payment, apply it
         if current_early_payment > 0:
             if current_early_payment > remaining_balance:
                 current_early_payment = remaining_balance
@@ -66,7 +65,7 @@ def generate_payment_schedule(loan_amount, annual_interest_rate, loan_term_month
             'payment': round(monthly_payment, 2),
             'principal': round(principal_payment, 2),
             'interest': round(interest_payment, 2),
-            'early_payment': round(current_early_payment, 2) if current_early_payment > 0 else 0,
+            'early_payment': round(current_early_payment, 2),
             'remaining_balance': round(remaining_balance, 2)
         })
         
@@ -75,7 +74,7 @@ def generate_payment_schedule(loan_amount, annual_interest_rate, loan_term_month
     
     return payment_schedule
 
-def calculate_loan_payment(loan_amount, annual_interest_rate, loan_term_months, early_payment=0):
+def calculate_loan_payment(loan_amount, annual_interest_rate, loan_term_months, early_payments=None):
     """
     Calculate loan payment details including monthly payment and amortization schedule.
     
@@ -83,20 +82,23 @@ def calculate_loan_payment(loan_amount, annual_interest_rate, loan_term_months, 
         loan_amount: The principal loan amount
         annual_interest_rate: Annual interest rate in percentage
         loan_term_months: Loan term in months
-        early_payment: Amount of early payment (optional)
+        early_payments: Dictionary mapping months to early payment amounts (optional)
         
     Returns:
-        Tuple of (monthly_payment, payment_schedule, total_payment, total_interest, early_payment)
+        Tuple of (monthly_payment, payment_schedule, total_payment, total_interest, total_early_payment)
     """
+    if early_payments is None:
+        early_payments = {}
+    
     monthly_payment = calculate_monthly_payment(loan_amount, annual_interest_rate, loan_term_months)
-    payment_schedule = generate_payment_schedule(loan_amount, annual_interest_rate, loan_term_months, early_payment)
+    payment_schedule = generate_payment_schedule(loan_amount, annual_interest_rate, loan_term_months, early_payments)
     
     # Calculate totals
     total_payment = sum(payment['payment'] for payment in payment_schedule)
     total_interest = sum(payment['interest'] for payment in payment_schedule)
+    total_early_payment = sum(payment['early_payment'] for payment in payment_schedule)
     
-    # Add early payment to total payment if it exists
-    if early_payment > 0:
-        total_payment += early_payment
+    # Add early payments to total payment
+    total_payment += total_early_payment
     
-    return round(monthly_payment, 2), payment_schedule, round(total_payment, 2), round(total_interest, 2), early_payment 
+    return round(monthly_payment, 2), payment_schedule, round(total_payment, 2), round(total_interest, 2), round(total_early_payment, 2) 
